@@ -1,14 +1,14 @@
-"""Modified TPCRP variant placeholder.
+"""Compatibility wrapper for the modified TPCRP experiment."""
 
-This should contain the performance-improving variant after the baseline TPCRP
-implementation is completed.
-"""
+from tpcrp.improvements import DiversifiedTPCRPSelector
+from tpcrp.train import main as run_experiment
 
-from __future__ import annotations
-
-from models import SimpleCifarCNN
+__all__ = ["DiversifiedTPCRPSelector", "main"]
 
 
-def build_modified_tpcrp_model():
-    """Temporary stronger baseline variant hook."""
-    return SimpleCifarCNN()
+def main() -> None:
+    run_experiment(default_selector="diversified", default_framework="fully_supervised")
+
+
+if __name__ == "__main__":
+    main()

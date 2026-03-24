@@ -51,25 +51,43 @@ class SimCLRModel(nn.Module):
 class LinearClassifier(nn.Module):
     """Linear probe or supervised head on top of frozen embeddings."""
 
-    def __init__(self, in_dim: int = 512, num_classes: int = 10) -> None:
+    def __init__(self, in_dim: int = 512, num_classes: int = 10, dropout_p: float = 0.0) -> None:
         super().__init__()
+        self.dropout = nn.Dropout(p=dropout_p) if dropout_p > 0 else nn.Identity()
         self.linear = nn.Linear(in_dim, num_classes)
+        self.feature_dim = in_dim
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return x
+
+    def forward_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.linear(self.dropout(features))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.linear(x)
+        features = self.encode(x)
+        return self.forward_from_features(features)
 
 
 class ResNet18Classifier(nn.Module):
     """Supervised ResNet-18 classifier used for evaluation on queried labels."""
 
-    def __init__(self, num_classes: int = 10) -> None:
+    def __init__(self, num_classes: int = 10, dropout_p: float = 0.0) -> None:
         super().__init__()
         self.backbone = _build_cifar_resnet18()
-        in_dim = self.backbone.fc.in_features
-        self.backbone.fc = nn.Linear(in_dim, num_classes)
+        self.feature_dim = self.backbone.fc.in_features
+        self.backbone.fc = nn.Identity()
+        self.dropout = nn.Dropout(p=dropout_p) if dropout_p > 0 else nn.Identity()
+        self.classifier = nn.Linear(self.feature_dim, num_classes)
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return self.backbone(x)
+
+    def forward_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.classifier(self.dropout(features))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.backbone(x)
+        features = self.encode(x)
+        return self.forward_from_features(features)
 
 
 def reset_parameters(module: nn.Module) -> None:

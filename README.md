@@ -1,40 +1,96 @@
 # Kasim-5CCSAMLF-CW2
 
-Coursework split:
+Coursework repository for reproducing TypiClust / TPCRP-style active learning on CIFAR-10, writing the report, and evaluating a modified improvement.
 
-1. Implement the TPCRP algorithm from the coursework paper using CIFAR-10.
-2. Write a two-page LaTeX report summarising the paper, results, plots, and analysis.
-3. Propose, implement, and evaluate a modified TPCRP variant that improves performance.
+## Coursework Rules We Need To Respect
 
-Current status:
+- Implement all baselines across the three required frameworks, not just the random baseline.
+- Reproduce the paper results to the best of our ability.
+- Do not use implementation code from the paper authors or other external implementations.
+- Reuse of older standard building blocks is allowed, for example an untrained `ResNet-18`, as long as we train and integrate it ourselves.
+- The improvement section may change more than one aspect of the algorithm, but the report must justify and analyse those changes clearly.
 
-- Repo scaffolded for Task 1.
-- CIFAR-10 training pipeline added.
-- TPCRP-specific algorithm code is still blocked on the missing coursework paper / `CW` folder.
+The in-repo compliance notes live in `docs/coursework_rules.md`.
 
-Task 1 interpretation:
+## Current Repo Layout
 
-- The implementation must be your own re-creation of the paper's method.
-- It must run successfully without runtime errors.
-- CIFAR-10 is the required dataset.
-- You should keep evidence for the report and notebook printout.
+- `tpcrp/`: core implementation package for models, acquisition strategies, utilities, and training.
+- `experiments/`: runnable entry points for baseline/improvement runs and the three frameworks.
+- `results/`: organised output location for baseline and improvement artefacts.
+- `reports/`: LaTeX report draft.
+- `docs/`: coursework constraints and process notes.
+- `data/`: local CIFAR-10 cache.
+- `tools/`: maintenance and orchestration scripts, including notebook regeneration and matrix launching.
+- `tpcrp_colab.ipynb`: Colab notebook for GPU runs with Drive-backed cache reuse.
 
-Planned baseline workflow:
+## What Is Implemented Now
 
-1. Read the TPCRP paper and extract the exact model/training procedure.
-2. Implement the baseline TPCRP method in `tpcrp.py`.
-3. Train/evaluate on CIFAR-10 via `train.py`.
-4. Add a modified variant in `modified_tpcrp.py`.
-5. Export results, plots, and tables for the report.
+- A paper-faithful TypiClust / TPCRP-style selection pipeline in `tpcrp/selector.py`.
+- A selector registry in `tpcrp/acquisition.py` covering the main comparison methods used in the paper workflow: random, uncertainty, margin, entropy, DBAL, CoreSet, BALD, BADGE, TypiClust, and the modified diversified variant.
+- A cached SimCLR pipeline in `tpcrp/train.py` that can save and reuse representation checkpoints and embedding arrays.
+- Three runnable framework paths:
+  - fully supervised;
+  - embedding + linear probe;
+  - lightweight semi-supervised pseudo-label runner.
+- A first improvement variant in `tpcrp/improvements.py` that keeps cluster balancing but adds an intra-cluster diversity term.
+- Compatibility wrappers at the repo root so older commands such as `python train.py` still work.
 
-Files:
+## Implementation Marks Check
 
-- `train.py`: training/evaluation entry point.
-- `models.py`: baseline CNN backbone used by the current scaffold.
-- `utils.py`: CIFAR-10 loading, training loop, evaluation helpers.
-- `tpcrp.py`: paper-faithful TPCRP implementation placeholder.
-- `modified_tpcrp.py`: modification placeholder.
+For the coursework's implementation-focused marks, the core algorithm work is now in place:
 
-Blocked item:
+- self-supervised representation learning;
+- feature extraction on the unlabeled pool;
+- K-means / MiniBatchKMeans clustering;
+- cluster balancing via the fewest-labeled-clusters rule;
+- typicality scoring via inverse mean k-nearest-neighbour distance;
+- iterative active-learning querying;
+- all implemented locally in this repository without importing author code.
 
-- Add the coursework paper or `CW` folder to this repo so the TPCRP implementation can be matched to the paper exactly.
+That means the project is in a credible state for the "implement the algorithm" component. What is still missing for full coursework strength is the experimental coverage and report evidence, especially the complete baseline matrix across all three frameworks.
+
+## Current Gap Against The Coursework
+
+The codebase is now organised for baseline and improvement work, and the runner infrastructure can execute the required framework/selector combinations. However, the full matrix of required baselines across all three frameworks has not yet been completed with report-ready runs.
+
+One more important caveat: the current semi-supervised runner is a lightweight pseudo-label framework, not a faithful FlexMatch reproduction. If strict paper-level parity is required for that framework, FlexMatch-equivalent training is still a remaining task.
+
+## Running Experiments
+
+Representation precompute for Colab/GPU reuse:
+
+```bash
+python experiments/run_fully_supervised.py --selector typiclust --rounds 0 --simclr-epochs 500 --cache-dir results/cache
+```
+
+Baseline matrix launcher:
+
+```bash
+python tools/run_experiment_matrix.py --frameworks fully_supervised --cache-dir results/cache --output-root results/baseline --reuse-representation --reuse-embeddings
+```
+
+Fully supervised smoke test:
+
+```bash
+python experiments/run_fully_supervised.py --selector typiclust --debug-subset 256 --query-size 10 --rounds 1 --simclr-epochs 1 --classifier-epochs 1 --simclr-batch-size 128 --classifier-batch-size 128 --num-workers 0
+```
+
+Embedding framework run:
+
+```bash
+python experiments/run_embedding_framework.py --selector typiclust --query-size 10 --rounds 5 --simclr-epochs 500 --classifier-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings
+```
+
+Semi-supervised runner:
+
+```bash
+python experiments/run_semi_supervised.py --selector typiclust --query-size 10 --rounds 5 --simclr-epochs 500 --semi-supervised-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings
+```
+
+Modified improvement run:
+
+```bash
+python experiments/run_improvement.py --query-size 10 --rounds 5 --simclr-epochs 500 --classifier-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings --diversity-weight 0.35
+```
+
+If `--output-dir` is omitted, runs are written under `results/baseline/` or `results/improvements/` automatically. The Colab notebook already uses this cached workflow.
