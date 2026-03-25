@@ -85,6 +85,7 @@ def parse_args(default_selector: str = "typiclust", default_framework: str = "fu
     parser.add_argument("--mc-dropout-passes", type=int, default=10)
     parser.add_argument("--dropout-p", type=float, default=0.2)
     parser.add_argument("--num-workers", type=int, default=2)
+    parser.add_argument("--simclr-checkpoint-interval", type=int, default=5)
     parser.add_argument("--debug-subset", type=int, default=None)
     parser.add_argument("--show-progress", dest="show_progress", action="store_true")
     parser.add_argument("--no-show-progress", dest="show_progress", action="store_false")
@@ -144,6 +145,64 @@ def representation_cache_dir(args: argparse.Namespace) -> Path:
     return args.cache_dir / cache_name
 
 
+def _simclr_metadata(args: argparse.Namespace) -> dict[str, float | int | None]:
+    return {
+        "seed": args.seed,
+        "simclr_epochs": args.simclr_epochs,
+        "simclr_batch_size": args.simclr_batch_size,
+        "simclr_lr": args.simclr_lr,
+        "weight_decay": args.weight_decay,
+        "temperature": args.temperature,
+        "debug_subset": args.debug_subset,
+    }
+
+
+def save_simclr_resume_checkpoint(
+    resume_path: Path,
+    model: SimCLRModel,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    epoch: int,
+    args: argparse.Namespace,
+) -> Path:
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "feature_dim": model.feature_dim,
+        "projection_dim": model.projector.layers[-1].out_features,
+        "epoch": epoch,
+        "metadata": _simclr_metadata(args),
+    }
+    torch.save(payload, resume_path)
+    return resume_path
+
+
+def load_simclr_resume_checkpoint(
+    resume_path: Path,
+    device: torch.device,
+    lr: float,
+    weight_decay: float,
+    epochs: int,
+) -> tuple[SimCLRModel, torch.optim.Optimizer, torch.optim.lr_scheduler._LRScheduler, int]:
+    payload = torch.load(resume_path, map_location=device, weights_only=False)
+    projection_dim = int(payload.get("projection_dim", 128))
+    model = SimCLRModel(projection_dim=projection_dim).to(device)
+    model.load_state_dict(payload["state_dict"])
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        lr=lr,
+        momentum=0.9,
+        weight_decay=weight_decay,
+    )
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(epochs, 1))
+    optimizer.load_state_dict(payload["optimizer_state_dict"])
+    scheduler.load_state_dict(payload["scheduler_state_dict"])
+    start_epoch = int(payload.get("epoch", 0))
+    return model, optimizer, scheduler, start_epoch
+
+
 def train_representation(
     dataset: Dataset,
     epochs: int,
@@ -155,9 +214,13 @@ def train_representation(
     num_workers: int,
     show_progress: bool,
     progress_prefix: str,
+    resume_path: Path,
+    checkpoint_interval: int,
+    args: argparse.Namespace,
+    reuse_existing: bool,
 ) -> SimCLRModel:
-    model = SimCLRModel().to(device)
     loader = create_loader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    model = SimCLRModel().to(device)
     optimizer = torch.optim.SGD(
         model.parameters(),
         lr=lr,
@@ -165,9 +228,20 @@ def train_representation(
         weight_decay=weight_decay,
     )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(epochs, 1))
+    start_epoch = 0
+
+    if resume_path.exists() and reuse_existing:
+        model, optimizer, scheduler, start_epoch = load_simclr_resume_checkpoint(
+            resume_path=resume_path,
+            device=device,
+            lr=lr,
+            weight_decay=weight_decay,
+            epochs=epochs,
+        )
+        print(f"Resuming SimCLR from epoch {start_epoch:03d} using {resume_path}")
 
     print(f"SimCLR dataset size: {len(dataset)}")
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch + 1, epochs + 1):
         loss = train_simclr_epoch(
             model,
             loader,
@@ -179,6 +253,15 @@ def train_representation(
         )
         scheduler.step()
         print(f"{progress_prefix} epoch {epoch:03d} | loss={loss:.4f}")
+        if checkpoint_interval > 0 and (epoch % checkpoint_interval == 0 or epoch == epochs):
+            save_simclr_resume_checkpoint(
+                resume_path=resume_path,
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                epoch=epoch,
+                args=args,
+            )
 
     return model
 
@@ -190,15 +273,7 @@ def save_simclr_checkpoint(cache_dir: Path, model: SimCLRModel, args: argparse.N
         "state_dict": model.state_dict(),
         "feature_dim": model.feature_dim,
         "projection_dim": model.projector.layers[-1].out_features,
-        "metadata": {
-            "seed": args.seed,
-            "simclr_epochs": args.simclr_epochs,
-            "simclr_batch_size": args.simclr_batch_size,
-            "simclr_lr": args.simclr_lr,
-            "weight_decay": args.weight_decay,
-            "temperature": args.temperature,
-            "debug_subset": args.debug_subset,
-        },
+        "metadata": _simclr_metadata(args),
     }
     torch.save(payload, checkpoint_path)
     return checkpoint_path
@@ -241,6 +316,7 @@ def prepare_representation_artifacts(
     cache_dir = representation_cache_dir(args)
     cache_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = cache_dir / "simclr_checkpoint.pt"
+    resume_path = cache_dir / "simclr_resume.pt"
     train_embeddings_path = cache_dir / "train_embeddings.npy"
     test_embeddings_path = cache_dir / "test_embeddings.npy"
     pool_indices_path = cache_dir / "active_pool_indices.npy"
@@ -263,8 +339,14 @@ def prepare_representation_artifacts(
             num_workers=args.num_workers,
             show_progress=args.show_progress,
             progress_prefix="SimCLR",
+            resume_path=resume_path,
+            checkpoint_interval=args.simclr_checkpoint_interval,
+            args=args,
+            reuse_existing=args.reuse_representation,
         )
         save_simclr_checkpoint(cache_dir, simclr_model, args)
+        if resume_path.exists():
+            resume_path.unlink()
 
     need_train_embeddings = not (train_embeddings_path.exists() and args.reuse_embeddings)
     need_test_embeddings = not (test_embeddings_path.exists() and args.reuse_embeddings)
