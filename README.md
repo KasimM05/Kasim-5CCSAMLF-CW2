@@ -22,6 +22,7 @@ The in-repo compliance notes live in `docs/coursework_rules.md`.
 - `data/`: local CIFAR-10 cache.
 - `tools/`: maintenance and orchestration scripts, including notebook regeneration and matrix launching.
 - `tpcrp_colab.ipynb`: Colab notebook for GPU runs with Drive-backed cache reuse.
+- `tpcrp_kaggle.ipynb`: Kaggle notebook for GPU runs under `/kaggle/working`.
 
 ## What Is Implemented Now
 
@@ -93,4 +94,4 @@ Modified improvement run:
 python experiments/run_improvement.py --query-size 10 --rounds 5 --simclr-epochs 500 --classifier-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings --diversity-weight 0.35
 ```
 
-If `--output-dir` is omitted, runs are written under `results/baseline/` or `results/improvements/` automatically. The Colab notebook already uses this cached workflow.
+If `--output-dir` is omitted, runs are written under `results/baseline/` or `results/improvements/` automatically. Both the Colab and Kaggle notebooks at the repo root use this cached workflow, with platform-specific storage paths.

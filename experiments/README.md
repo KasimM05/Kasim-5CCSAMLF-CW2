@@ -16,7 +16,7 @@ python experiments/run_semi_supervised.py --cache-dir results/cache --reuse-repr
 python experiments/run_improvement.py --cache-dir results/cache --reuse-representation --reuse-embeddings --output-dir results/improvements/<run_name> ...
 ```
 
-Keep baseline and modified runs separate so the report can compare them cleanly. The Colab notebook at the repo root follows this exact cache-first workflow.
+Keep baseline and modified runs separate so the report can compare them cleanly. The Colab and Kaggle notebooks at the repo root follow this exact cache-first workflow with platform-specific cache directories.
 
 Matrix example:
 
