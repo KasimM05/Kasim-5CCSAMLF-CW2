@@ -3,6 +3,7 @@
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{enumitem}
+\usepackage{attachfile2}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{titlesec}
@@ -93,5 +94,9 @@ Under the current seed and reduced budget, the diversified selector produced the
 
 \section{Conclusion and Limitations}
 The implementation requirement is satisfied: self-supervised representation learning, embedding extraction, clustering, typicality-based querying, baseline selector infrastructure, and reproducible runners are all implemented locally. Under the reduced compute budget, TPCRP is strongest in the fully supervised and semi-supervised comparisons, but not in the embedding framework where simpler coverage baselines perform better. The proposed diversification modification was implemented and tested successfully, but it does not yet deliver a meaningful empirical gain. The main limitations are experimental rather than architectural: the training budget is reduced relative to the paper, the semi-supervised framework is a lightweight scaffold rather than a full FlexMatch-faithful reproduction, and the current results are single-seed comparisons. Future work should therefore focus on a stronger semi-supervised backend, multi-seed evaluation, and a more aggressive diversity weighting that forces the modified selector to behave differently from baseline TPCRP.
+
+\appendix
+\section*{Appendix}
+The executed notebook printout is attached separately as \textattachfile{notebook.pdf}{\texttt{notebook.pdf}}.
 
 \end{document}
