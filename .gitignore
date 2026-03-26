@@ -13,6 +13,10 @@ results/**/*.pdf
 results/**/*.svg
 results/**/*.pt
 results/**/*.pth
+results/**/*.npy
+results/**/*.zip
+results/**/Zone.Identifier
+*.zip
 
 main.aux
 main.fdb_latexmk
