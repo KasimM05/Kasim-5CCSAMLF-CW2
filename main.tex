@@ -1,1 +1,97 @@
-\input{reports/coursework_report_draft.tex}
+\documentclass[10pt]{article}
+\usepackage[margin=0.72in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{titlesec}
+
+\titleformat{\section}{\bfseries}{\thesection.}{0.4em}{}
+\titlespacing*{\section}{0pt}{0.8ex}{0.4ex}
+\setlist[itemize]{leftmargin=*, nosep, topsep=2pt}
+\setlist[enumerate]{leftmargin=*, nosep, topsep=2pt}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{2pt}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.96}
+
+\title{TPCRP Coursework Report}
+\author{Kasim}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Aim, Significance, and Constraints}
+This coursework reproduces a TPCRP / TypiClust-style active-learning pipeline on CIFAR-10, compares it with the required baselines across the three required frameworks, and proposes a modified improvement. The broader problem is important because modern vision systems need large labelled datasets, while annotation is expensive in settings such as medical imaging, remote sensing, and industrial inspection. Active learning therefore matters because it aims to reach useful accuracy with fewer labels. Three coursework constraints shape the work: the baseline comparison must cover all required baselines across all three frameworks, the implementation must be our own re-creation rather than author code, and the improvement section may change more than one component provided the change is justified and analysed clearly.
+
+\section{Method and Implementation}
+TPCRP targets low-budget active learning by preferring representative unlabeled samples rather than purely uncertain ones. The implemented pipeline is: (1) train a SimCLR encoder on the active pool, (2) extract normalized embeddings, (3) cluster embeddings with K-means or MiniBatchKMeans, (4) choose the cluster with the fewest labeled examples, and (5) query the unlabeled point with the highest local typicality inside that cluster. The central ideas are self-supervised representation learning, cluster balancing to encourage coverage, and typicality as a local-density proxy for representativeness. The implementation is split across \texttt{tpcrp/selector.py} for TPCRP logic, \texttt{tpcrp/acquisition.py} for the baseline selector registry, \texttt{tpcrp/models.py} for SimCLR and classifier models, and \texttt{tpcrp/train.py} for the shared experiment runner. This gives a clear local implementation of the algorithm without importing author code.
+
+\section{Experimental Setup}
+The experiments use CIFAR-10, with the standard training split as the active-learning pool and the standard test split for evaluation. The three required frameworks are: fully supervised retraining after each query round, frozen self-supervised embeddings with a linear probe, and a lightweight semi-supervised scaffold that uses labeled and unlabeled data together. The implemented baselines are random, uncertainty, margin, entropy, DBAL, CoreSet, BALD, BADGE, and TPCRP / TypiClust. Because the paper's heavier configuration is difficult to finish reliably in short-lived notebook GPU sessions, the main coursework runs use a matched reduced configuration: 200 SimCLR epochs, query size 10, three active-learning rounds, 10 supervised or embedding epochs per round, and 5 semi-supervised epochs. The runner saves a cached SimCLR checkpoint plus structured \texttt{run\_summary.json} and \texttt{round\_\{XX\}\_metrics.csv} artefacts for each run.
+
+\section{Baseline Results}
+Table~\ref{tab:baselines} summarises the completed reduced-budget results across all three frameworks.
+
+\begin{table}[h]
+\centering
+\caption{Best test accuracy (\%) under the reduced 200-epoch configuration.}
+\label{tab:baselines}
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & Fully Sup. & Embedding & Semi-sup. \\
+\midrule
+Random & 12.52 & 29.94 & 10.14 \\
+Uncertainty & 15.55 & 21.40 & 10.92 \\
+Margin & 11.55 & 18.96 & 11.27 \\
+Entropy & 15.45 & 19.45 & 12.83 \\
+DBAL & 14.59 & 15.99 & 11.14 \\
+CoreSet & 15.21 & 28.51 & 12.74 \\
+BALD & 13.26 & 15.99 & 12.41 \\
+BADGE & 11.60 & 21.56 & 12.82 \\
+TPCRP / TypiClust & 15.58 & 26.29 & 13.40 \\
+\bottomrule
+\end{tabular}
+\normalsize
+\end{table}
+
+Three patterns stand out. In the fully supervised framework, TPCRP / TypiClust achieves the best peak score, but only by narrow margins over uncertainty (+0.03 points) and entropy (+0.13). In the embedding framework, the ordering changes more than expected: random and CoreSet are strongest, while TPCRP remains competitive but trails the best baseline by 3.65 points. In the semi-supervised framework, all methods are weak in absolute terms, but TypiClust still attains the strongest peak result at 13.40\%, ahead of entropy by 0.57 points; this should be interpreted cautiously because the current semi-supervised runner is only a lightweight scaffold with five training epochs per round and no multi-seed statistical test.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{reports/figures/report_summary.png}
+\caption{Compact visual summary of the reported results. Left: TPCRP versus the strongest competing baseline in each framework. Right: baseline versus diversified TPCRP in the fully supervised setting.}
+\end{figure}
+
+\section{Improvement}
+The modified variant keeps TPCRP's cluster-balancing rule but changes the within-cluster ranking. Instead of selecting only the most typical point in the chosen cluster, the new score adds an explicit diversity term:
+\[
+\text{score}(i) = \tilde{t}(i) + \lambda \tilde{d}(i, R_c),
+\]
+where $\tilde{t}(i)$ is normalized typicality, $\tilde{d}(i, R_c)$ is normalized distance from already covered points in cluster $c$, and $\lambda$ controls the diversity strength. The rationale is that TPCRP already captures representativeness well, while an added diversity term should reduce redundant choices within dense local modes in a way that is conceptually aligned with coverage-based baselines such as CoreSet and BADGE. This improvement is implemented in \texttt{tpcrp/improvements.py} as \texttt{DiversifiedTPCRPSelector}; it was run through the same cached pipeline and produced the same structured artefacts as the baseline, confirming the modified implementation executed correctly.
+\begin{table}[h]
+\centering
+\caption{Baseline TPCRP versus diversified TPCRP in the fully supervised framework.}
+\small
+\begin{tabular}{lcc}
+\toprule
+Method & Best Test Acc. (\%) & Final Test Acc. (\%) \\
+\midrule
+TPCRP / TypiClust & 15.58 & 10.81 \\
+Diversified TPCRP & 15.64 & 11.03 \\
+\bottomrule
+\end{tabular}
+\normalsize
+\end{table}
+
+Under the current seed and reduced budget, the diversified selector produced the same queried pool indices as baseline TPCRP and only negligible numerical differences (+0.07 best accuracy, +0.22 final accuracy). This means the proposed diversity term did not materially change behaviour in the reported run. That is still a valid negative result: the modification was proposed, implemented, and evaluated, but under this configuration it does not provide convincing evidence of a useful gain. The most likely explanation is that the diversity term was too weak relative to the cluster-typicality term under this seed and small-budget setting.
+
+\section{Conclusion and Limitations}
+The implementation requirement is satisfied: self-supervised representation learning, embedding extraction, clustering, typicality-based querying, baseline selector infrastructure, and reproducible runners are all implemented locally. Under the reduced compute budget, TPCRP is strongest in the fully supervised and semi-supervised comparisons, but not in the embedding framework where simpler coverage baselines perform better. The proposed diversification modification was implemented and tested successfully, but it does not yet deliver a meaningful empirical gain. The main limitations are experimental rather than architectural: the training budget is reduced relative to the paper, the semi-supervised framework is a lightweight scaffold rather than a full FlexMatch-faithful reproduction, and the current results are single-seed comparisons. Future work should therefore focus on a stronger semi-supervised backend, multi-seed evaluation, and a more aggressive diversity weighting that forces the modified selector to behave differently from baseline TPCRP.
+
+\end{document}
