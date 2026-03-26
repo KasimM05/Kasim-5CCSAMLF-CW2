@@ -56,7 +56,6 @@ The implementation is local to this repository and does not reuse the paper auth
 - [`docs/`](docs): coursework rule notes and implementation checklist.
 - [`tpcrp_kaggle.ipynb`](tpcrp_kaggle.ipynb): clean Kaggle notebook used for the final workflow.
 - [`tpcrp_colab.ipynb`](tpcrp_colab.ipynb): Colab version of the same workflow.
-- [`tpcrp-kaggle (1).ipynb`](tpcrp-kaggle%20(1).ipynb): executed Kaggle notebook with outputs, retained for appendix generation.
 
 ## Final Workflow Used For Results
 
