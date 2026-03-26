@@ -10,7 +10,6 @@ This repository contains the completed coursework project for reproducing a TPCR
 - Experiment entry points: [`experiments/`](experiments)
 - Stored artefacts layout: [`results/README.md`](results/README.md)
 
-If the project is being inspected for marking, `main.tex` is the main written submission source and the `tpcrp/` package contains the algorithm implementation.
 
 ## Project Scope
 
@@ -115,17 +114,3 @@ The stored artefacts are organised as follows:
 - [`results/improvements/`](results/improvements): modified-selector outputs.
 
 Each run directory contains lightweight summary artefacts such as `run_summary.json` and `round_XX_metrics.csv`. Large generated caches, checkpoints, arrays, and archives are ignored by Git.
-
-## Appendix Material
-
-To print the executed Kaggle notebook as an appendix, use:
-
-- executed notebook with outputs: [`tpcrp-kaggle (1).ipynb`](tpcrp-kaggle%20(1).ipynb)
-- generated print-friendly HTML: [`reports/notebook_code_appendix_kaggle_with_outputs.html`](reports/notebook_code_appendix_kaggle_with_outputs.html)
-- exporter script: [`tools/export_notebook_code_appendix.py`](tools/export_notebook_code_appendix.py)
-
-The HTML file is intended to be opened in a browser and printed to PDF.
-
-## Important Limitation
-
-The semi-supervised framework in this repository is a lightweight scaffold rather than a full FlexMatch-faithful reproduction. Results for that framework should therefore be interpreted as coursework-level comparative evidence rather than exact paper-level replication.
