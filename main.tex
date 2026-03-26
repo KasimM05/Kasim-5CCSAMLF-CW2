@@ -3,9 +3,9 @@
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{enumitem}
-\usepackage{attachfile2}
 \usepackage{graphicx}
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
+\usepackage{pdfpages}
 \usepackage{titlesec}
 
 \titleformat{\section}{\bfseries}{\thesection.}{0.4em}{}
@@ -21,7 +21,7 @@
 
 \title{TPCRP Coursework Report}
 \author{Kasim}
-\date{\today}
+\date{}
 
 \begin{document}
 \maketitle
@@ -65,7 +65,7 @@ Three patterns stand out. In the fully supervised framework, TPCRP / TypiClust a
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{reports/figures/report_summary.png}
+\includegraphics[width=0.95\linewidth]{report_summary.png}
 \caption{Compact visual summary of the reported results. Left: TPCRP versus the strongest competing baseline in each framework. Right: baseline versus diversified TPCRP in the fully supervised setting.}
 \end{figure}
 
@@ -97,6 +97,10 @@ The implementation requirement is satisfied: self-supervised representation lear
 
 \appendix
 \section*{Appendix}
-The executed notebook printout is attached separately as \textattachfile{notebook.pdf}{\texttt{notebook.pdf}}.
+Project repository: \url{https://github.com/KasimM05/Kasim-5CCSAMLF-CW2}.
+
+The executed notebook printout follows on the next pages.
+
+\includepdf[pages=-]{notebook.pdf}
 
 \end{document}
