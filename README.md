@@ -1,97 +1,131 @@
 # Kasim-5CCSAMLF-CW2
 
-Coursework repository for reproducing TypiClust / TPCRP-style active learning on CIFAR-10, writing the report, and evaluating a modified improvement.
+This repository contains the completed coursework project for reproducing a TPCRP / TypiClust-style active-learning pipeline on CIFAR-10, evaluating the required baselines across three frameworks, and testing a modified improvement.
 
-## Coursework Rules We Need To Respect
+## What To Read First
 
-- Implement all baselines across the three required frameworks, not just the random baseline.
-- Reproduce the paper results to the best of our ability.
-- Do not use implementation code from the paper authors or other external implementations.
-- Reuse of older standard building blocks is allowed, for example an untrained `ResNet-18`, as long as we train and integrate it ourselves.
-- The improvement section may change more than one aspect of the algorithm, but the report must justify and analyse those changes clearly.
+- Report source: [`main.tex`](main.tex)
+- Report figure: [`reports/figures/report_summary.png`](reports/figures/report_summary.png)
+- Core implementation: [`tpcrp/`](tpcrp)
+- Experiment entry points: [`experiments/`](experiments)
+- Stored artefacts layout: [`results/README.md`](results/README.md)
 
-The in-repo compliance notes live in `docs/coursework_rules.md`.
+If the project is being inspected for marking, `main.tex` is the main written submission source and the `tpcrp/` package contains the algorithm implementation.
 
-## Current Repo Layout
+## Project Scope
 
-- `tpcrp/`: core implementation package for models, acquisition strategies, utilities, and training.
-- `experiments/`: runnable entry points for baseline/improvement runs and the three frameworks.
-- `results/`: organised output location for baseline and improvement artefacts.
-- `reports/`: LaTeX report draft.
-- `docs/`: coursework constraints and process notes.
-- `data/`: local CIFAR-10 cache.
-- `tools/`: maintenance and orchestration scripts, including notebook regeneration and matrix launching.
-- `tpcrp_colab.ipynb`: Colab notebook for GPU runs with Drive-backed cache reuse.
-- `tpcrp_kaggle.ipynb`: Kaggle notebook for GPU runs under `/kaggle/working`.
+The coursework addresses active learning for image classification, where the goal is to achieve useful performance with a small labelled set by selecting informative examples from a larger unlabeled pool. This project reproduces the paper workflow on CIFAR-10 under a reduced but matched training budget and compares:
 
-## What Is Implemented Now
+- fully supervised retraining after each query round;
+- frozen self-supervised embeddings with a linear probe;
+- a lightweight semi-supervised scaffold using labelled and unlabeled data together.
 
-- A paper-faithful TypiClust / TPCRP-style selection pipeline in `tpcrp/selector.py`.
-- A selector registry in `tpcrp/acquisition.py` covering the main comparison methods used in the paper workflow: random, uncertainty, margin, entropy, DBAL, CoreSet, BALD, BADGE, TypiClust, and the modified diversified variant.
-- A cached SimCLR pipeline in `tpcrp/train.py` that can save and reuse representation checkpoints and embedding arrays.
-- Three runnable framework paths:
-  - fully supervised;
-  - embedding + linear probe;
-  - lightweight semi-supervised pseudo-label runner.
-- A first improvement variant in `tpcrp/improvements.py` that keeps cluster balancing but adds an intra-cluster diversity term.
-- Compatibility wrappers at the repo root so older commands such as `python train.py` still work.
+The repository also contains a modified selector that augments TPCRP with an intra-cluster diversity term.
 
-## Implementation Marks Check
+## Implemented Components
 
-For the coursework's implementation-focused marks, the core algorithm work is now in place:
+The codebase includes the following completed components:
 
-- self-supervised representation learning;
-- feature extraction on the unlabeled pool;
+- SimCLR-based self-supervised representation learning;
+- embedding extraction for the active pool and test set;
 - K-means / MiniBatchKMeans clustering;
-- cluster balancing via the fewest-labeled-clusters rule;
-- typicality scoring via inverse mean k-nearest-neighbour distance;
+- cluster balancing based on the fewest-labelled-cluster rule;
+- local typicality scoring using k-nearest-neighbour density;
 - iterative active-learning querying;
-- all implemented locally in this repository without importing author code.
+- a selector registry covering the required baselines:
+  - random
+  - uncertainty
+  - margin
+  - entropy
+  - DBAL
+  - CoreSet
+  - BALD
+  - BADGE
+  - TPCRP / TypiClust
+- a modified diversified TPCRP variant.
 
-That means the project is in a credible state for the "implement the algorithm" component. What is still missing for full coursework strength is the experimental coverage and report evidence, especially the complete baseline matrix across all three frameworks.
+The implementation is local to this repository and does not reuse the paper authors' released code.
 
-## Current Gap Against The Coursework
+## Repository Layout
 
-The codebase is now organised for baseline and improvement work, and the runner infrastructure can execute the required framework/selector combinations. However, the full matrix of required baselines across all three frameworks has not yet been completed with report-ready runs.
+- [`main.tex`](main.tex): sole LaTeX report source.
+- [`tpcrp/`](tpcrp): models, selector logic, improvement variant, utilities, and shared training pipeline.
+- [`experiments/`](experiments): runnable entry points for each framework and the improvement experiment.
+- [`tools/`](tools): notebook generation, notebook appendix export, and matrix orchestration scripts.
+- [`results/`](results): organised experiment artefacts and cached representations.
+- [`reports/`](reports): non-LaTeX report assets, currently the summary figure and printable notebook appendix HTML.
+- [`docs/`](docs): coursework rule notes and implementation checklist.
+- [`tpcrp_kaggle.ipynb`](tpcrp_kaggle.ipynb): clean Kaggle notebook used for the final workflow.
+- [`tpcrp_colab.ipynb`](tpcrp_colab.ipynb): Colab version of the same workflow.
+- [`tpcrp-kaggle (1).ipynb`](tpcrp-kaggle%20(1).ipynb): executed Kaggle notebook with outputs, retained for appendix generation.
 
-One more important caveat: the current semi-supervised runner is a lightweight pseudo-label framework, not a faithful FlexMatch reproduction. If strict paper-level parity is required for that framework, FlexMatch-equivalent training is still a remaining task.
+## Final Workflow Used For Results
 
-## Running Experiments
+The final experimental workflow was:
 
-Representation precompute for Colab/GPU reuse:
+1. validate the notebook environment with a smoke test;
+2. precompute a single cached SimCLR representation;
+3. run the fully supervised baseline matrix;
+4. run the embedding baseline matrix;
+5. run the semi-supervised baseline matrix;
+6. run the diversified TPCRP improvement.
+
+The main reduced configuration used for the completed runs is:
+
+- `200` SimCLR epochs
+- query size `10`
+- `3` active-learning rounds
+- `10` supervised / linear-probe epochs per round
+- `5` semi-supervised epochs per round
+
+This configuration is intentionally lighter than the original paper setup, but it is matched across methods and is the configuration discussed in the report.
+
+## Key Files For Reproduction
+
+- Fully supervised runner: [`experiments/run_fully_supervised.py`](experiments/run_fully_supervised.py)
+- Embedding runner: [`experiments/run_embedding_framework.py`](experiments/run_embedding_framework.py)
+- Semi-supervised runner: [`experiments/run_semi_supervised.py`](experiments/run_semi_supervised.py)
+- Improvement runner: [`experiments/run_improvement.py`](experiments/run_improvement.py)
+- Shared training and cache logic: [`tpcrp/train.py`](tpcrp/train.py)
+- TPCRP / TypiClust selector: [`tpcrp/selector.py`](tpcrp/selector.py)
+- Diversified selector: [`tpcrp/improvements.py`](tpcrp/improvements.py)
+
+Example command structure:
 
 ```bash
-python experiments/run_fully_supervised.py --selector typiclust --rounds 0 --simclr-epochs 500 --cache-dir results/cache
+python experiments/run_fully_supervised.py \
+  --selector typiclust \
+  --query-size 10 \
+  --rounds 3 \
+  --simclr-epochs 200 \
+  --classifier-epochs 10 \
+  --reuse-representation \
+  --reuse-embeddings
 ```
 
-Baseline matrix launcher:
+## Results and Artefacts
 
-```bash
-python tools/run_experiment_matrix.py --frameworks fully_supervised --cache-dir results/cache --output-root results/baseline --reuse-representation --reuse-embeddings
-```
+The stored artefacts are organised as follows:
 
-Fully supervised smoke test:
+- [`results/cache/`](results/cache): cached SimCLR checkpoint and embeddings.
+- [`results/precompute/`](results/precompute): precompute metadata.
+- [`results/baseline/fully_supervised/`](results/baseline/fully_supervised): fully supervised baseline outputs.
+- [`results/baseline/embedding/`](results/baseline/embedding): embedding-framework outputs.
+- [`results/baseline/semi_supervised/`](results/baseline/semi_supervised): semi-supervised outputs.
+- [`results/improvements/`](results/improvements): modified-selector outputs.
 
-```bash
-python experiments/run_fully_supervised.py --selector typiclust --debug-subset 256 --query-size 10 --rounds 1 --simclr-epochs 1 --classifier-epochs 1 --simclr-batch-size 128 --classifier-batch-size 128 --num-workers 0
-```
+Each run directory contains lightweight summary artefacts such as `run_summary.json` and `round_XX_metrics.csv`. Large generated caches, checkpoints, arrays, and archives are ignored by Git.
 
-Embedding framework run:
+## Appendix Material
 
-```bash
-python experiments/run_embedding_framework.py --selector typiclust --query-size 10 --rounds 5 --simclr-epochs 500 --classifier-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings
-```
+To print the executed Kaggle notebook as an appendix, use:
 
-Semi-supervised runner:
+- executed notebook with outputs: [`tpcrp-kaggle (1).ipynb`](tpcrp-kaggle%20(1).ipynb)
+- generated print-friendly HTML: [`reports/notebook_code_appendix_kaggle_with_outputs.html`](reports/notebook_code_appendix_kaggle_with_outputs.html)
+- exporter script: [`tools/export_notebook_code_appendix.py`](tools/export_notebook_code_appendix.py)
 
-```bash
-python experiments/run_semi_supervised.py --selector typiclust --query-size 10 --rounds 5 --simclr-epochs 500 --semi-supervised-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings
-```
+The HTML file is intended to be opened in a browser and printed to PDF.
 
-Modified improvement run:
+## Important Limitation
 
-```bash
-python experiments/run_improvement.py --query-size 10 --rounds 5 --simclr-epochs 500 --classifier-epochs 20 --cache-dir results/cache --reuse-representation --reuse-embeddings --diversity-weight 0.35
-```
-
-If `--output-dir` is omitted, runs are written under `results/baseline/` or `results/improvements/` automatically. Both the Colab and Kaggle notebooks at the repo root use this cached workflow, with platform-specific storage paths.
+The semi-supervised framework in this repository is a lightweight scaffold rather than a full FlexMatch-faithful reproduction. Results for that framework should therefore be interpreted as coursework-level comparative evidence rather than exact paper-level replication.
