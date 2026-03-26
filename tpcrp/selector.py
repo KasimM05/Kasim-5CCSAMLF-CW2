@@ -10,9 +10,11 @@ import numpy as np
 
 try:
     from sklearn.cluster import KMeans, MiniBatchKMeans
+    from sklearn.neighbors import NearestNeighbors
 except ImportError:  # pragma: no cover - optional dependency
     KMeans = None
     MiniBatchKMeans = None
+    NearestNeighbors = None
 
 
 def _run_numpy_kmeans(embeddings: np.ndarray, n_clusters: int, seed: int, iterations: int = 25) -> np.ndarray:
@@ -62,14 +64,34 @@ def compute_typicality(cluster_embeddings: np.ndarray, neighbor_count: int) -> n
     if len(cluster_embeddings) == 1:
         return np.array([float("inf")], dtype=np.float32)
 
-    distances = np.linalg.norm(
-        cluster_embeddings[:, None, :] - cluster_embeddings[None, :, :],
-        axis=2,
-    )
-    np.fill_diagonal(distances, np.inf)
     k = max(1, min(neighbor_count, len(cluster_embeddings) - 1))
-    nearest = np.partition(distances, kth=k - 1, axis=1)[:, :k]
-    mean_distance = nearest.mean(axis=1)
+
+    if NearestNeighbors is not None:
+        estimator = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")
+        estimator.fit(cluster_embeddings)
+        distances, _ = estimator.kneighbors(cluster_embeddings)
+        nearest = distances[:, 1 : k + 1]
+        mean_distance = nearest.mean(axis=1)
+        return 1.0 / np.maximum(mean_distance.astype(np.float32), 1e-12)
+
+    # Memory-safe fallback using chunked pairwise distances from dot products.
+    features = np.asarray(cluster_embeddings, dtype=np.float32)
+    squared_norms = np.sum(features * features, axis=1)
+    mean_distance = np.empty(len(features), dtype=np.float32)
+    chunk_size = 512
+
+    for start in range(0, len(features), chunk_size):
+        stop = min(start + chunk_size, len(features))
+        batch = features[start:stop]
+        batch_squared_norms = squared_norms[start:stop, None]
+        distances_sq = np.maximum(
+            batch_squared_norms + squared_norms[None, :] - 2.0 * batch @ features.T,
+            0.0,
+        )
+        distances_sq[np.arange(stop - start), np.arange(start, stop)] = np.inf
+        nearest = np.partition(distances_sq, kth=k - 1, axis=1)[:, :k]
+        mean_distance[start:stop] = np.sqrt(nearest).mean(axis=1)
+
     return 1.0 / np.maximum(mean_distance, 1e-12)
 
 
